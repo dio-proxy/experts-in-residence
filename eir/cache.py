@@ -5,14 +5,14 @@ from .moe import Cache
 
 
 def lru_miss_rate(trace, n, capacity):
-    """trace [R, T, K]: R independent streams (stream x layer). Fraction of expert
-    activations that are not resident in an LRU cache of `capacity` experts."""
+    """trace [R, T, K]: R independent streams. Per stream [R], the fraction of expert
+    activations whose expert is not resident in an LRU cache of `capacity` experts."""
     r, t, k = trace.shape
-    cache, misses = Cache(r, n, capacity), 0
+    cache, misses = Cache(r, n, capacity), torch.zeros(r)
     for i in range(t):
-        misses += (~cache.resident().gather(1, trace[:, i])).sum().item()
+        misses += (~cache.resident().gather(1, trace[:, i])).sum(1)
         cache.touch(trace[:, i])
-    return misses / (r * t * k)
+    return misses / (t * k)
 
 
 def segment_coverage(trace, n, m, seg=64):

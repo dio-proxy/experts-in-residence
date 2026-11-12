@@ -53,15 +53,15 @@ def test_hysteresis_reduces_cluster_switches():
 
 def test_cache_bonus_reduces_misses():
     r, x = FlatRouter(D, 16, 2), torch.randn(4, 64, D)
-    miss = [lru_miss_rate(r.scan(x, Cache(4, 16, 4), bonus=b)[0], 16, 4) for b in (0.0, 1.0, 100.0)]
+    miss = [lru_miss_rate(r.scan(x, Cache(4, 16, 4), bonus=b)[0], 16, 4).mean().item() for b in (0.0, 1.0, 100.0)]
     assert miss[0] > miss[1] > miss[2]
     assert miss[2] == pytest.approx(2 / (64 * 2))  # only the first two cold loads remain
 
 
 def test_lru_hand_example():
     trace = torch.tensor([[[0], [1], [0], [2], [1], [0]]])  # capacity 2: miss miss hit miss(evict 1) miss(evict 0) miss
-    assert lru_miss_rate(trace, 3, 2) == pytest.approx(5 / 6)
-    assert lru_miss_rate(trace, 3, 3) == pytest.approx(3 / 6)
+    assert lru_miss_rate(trace, 3, 2).item() == pytest.approx(5 / 6)
+    assert lru_miss_rate(trace, 3, 3).item() == pytest.approx(3 / 6)
 
 
 def test_segment_coverage_and_switch_rate():
