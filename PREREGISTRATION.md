@@ -20,7 +20,7 @@ it needs fewer page-ins than a flat router trained for locality.
   Every FFN is an MoE with 64 experts (hidden 384), 2 active per token.
 - Data: WikiText-2, TinyStories (validation file), CPython standard library source;
   each training sequence comes from one domain.
-- Training: 2,000 steps, batch 32x256, AdamW lr 1e-3 (100 warmup steps, cosine), balance
+- Training: 2,000 steps, batch 16x256 (see Amendments), AdamW lr 1e-3 (100 warmup steps, cosine), balance
   loss weight 0.1, seed 0. All runs see the same batches.
 - Evaluation: 16 held-out streams per domain, 4,096 tokens each (196,608 tokens). The expert
   cache persists along a stream; the model context resets every 256 tokens.
@@ -63,3 +63,10 @@ and the result is reported as inconclusive.
 
 Runs of at most 300 training steps, used only to make training stable (balance weight 0.1,
 block-wise expert batching). No pilot was evaluated on the held-out streams.
+
+## Amendments
+
+1. **Batch 32x256 -> 16x256, before any run finished.** The first run at batch 32 pushed the
+   8 GB training machine into swap (about 0.9 s per step and slowing). It was stopped at
+   roughly step 600 of 2,000, discarded without evaluation, and every run was restarted at
+   batch 16. Nothing else changed.

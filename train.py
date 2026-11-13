@@ -19,7 +19,7 @@ p.add_argument("--slow", type=float, default=0.0, help="EMA decay of the tree's 
 p.add_argument("--balance", type=float, default=0.1)
 p.add_argument("--seed", type=int, default=0)
 p.add_argument("--steps", type=int, default=2000)
-p.add_argument("--batch", type=int, default=32)
+p.add_argument("--batch", type=int, default=16)
 p.add_argument("--lr", type=float, default=1e-3)
 a = p.parse_args()
 
