@@ -9,6 +9,10 @@ restricting a token's experts to one cluster costs 8.7% perplexity before any lo
 asked for. No tree configuration gets within 5% of the flat baseline, let alone the
 pre-registered 1%.
 
+A follow-up that imposes the same grouping on the trained flat routers, with no retraining,
+pays almost the same price (+7.7%). The cost is the constraint itself: both of a token's
+experts in one group of 8.
+
 ![Perplexity change vs expert cache miss rate for every configuration](assets/frontier.png)
 
 Every point is one configuration; the lines are each family's best trade-off. Configurations
@@ -101,14 +105,41 @@ Added after seeing the results:
   64-way choice throws away the whole benefit of having experts. The sticky tree at λ=0.1 keeps
   39% of it.
 
+## Follow-up: grouping after training
+
+If the tree is the cost, keep the flat router and add the groups afterwards. For each layer of
+a trained flat model, the 64 experts are split into 8 groups of 8 by how often they are used in
+the same 64-token segments of *training* data. At inference both experts come from one group,
+chosen by its probability mass with the same hysteresis as the tree. Nothing is retrained. The
+protocol was added to [PREREGISTRATION.md](PREREGISTRATION.md) before the run; it reuses the
+held-out streams, so it is exploratory.
+
+| flat model | perplexity | with groups | change | miss @8 | with groups |
+|---|---|---|---|---|---|
+| λ=0 | 53.59 | 57.74 | +7.7% | 0.739 | 0.709 |
+| λ=0.03 | 54.36 | 58.29 | +7.2% | 0.379 | 0.348 |
+| λ=0.1 | 67.17 | 68.27 | +1.6% | 0.051 | 0.052 |
+| λ=0.3 | 71.83 | 72.05 | +0.3% | 0.023 | 0.021 |
+
+**Not supported either.** No grouped configuration is within the 5% gate, and at wider gates
+the plain flat family is better (0.119 against 0.352 at 10%).
+
+- **The entry fee is the constraint, not the training.** Restricting a flat router to one group
+  per token costs 7.7% with no retraining; the tree, trained with that constraint from the
+  start, costs 8.7%. Two experts that must share a group of 8 are simply worse than two free
+  experts at this scale.
+- **Stickiness has to be trained.** On an untrained grouping a hysteresis margin of 1 costs a
+  further 26% perplexity. The trained sticky tree reaches 0.092 misses at +13.9%; the best
+  grouped configuration near that quality reaches 0.199 at +12.3%.
+- **Groups only come free where they do nothing.** On the λ ≥ 0.1 models the restriction costs
+  under 2%, because those routers had already collapsed onto a few experts.
+
 ## What I would try next
 
-The stickiness worked and the structure did not, so the next step is to get the grouping
-without the constraint:
+Both results point at the same thing: the second expert needs to be free.
 
-- group the experts of a trained *flat* router by co-activation and apply the sticky choice to
-  those groups, so the baseline perplexity is untouched;
-- let a token use two clusters, with only the first one sticky;
+- one sticky expert group plus one unconstrained expert per token;
+- a cache of two clusters with a token allowed to span both;
 - more seeds and longer training for the tree gap itself, which rests on one seed here.
 
 ## Setup
@@ -121,7 +152,7 @@ without the constraint:
   bonus Δ ∈ {0, 1, 2, 4} at inference ([Skliar et al., 2024](https://arxiv.org/abs/2412.00099)).
 - Tree family: reuse loss on the 8-way cluster distribution only, same λ, plus a slow cluster
   gate; cache bonus and cluster hysteresis m ∈ {0, 1, 2} at inference.
-- 78 evaluated configurations in total.
+- 78 evaluated configurations in the main experiment, 48 more in the follow-up.
 
 Both routers share the expert bank, the balance loss and the batches. No token is ever dropped:
 experts run in blocks of the mean load in a single `bmm`, whatever the load skew.
@@ -133,6 +164,7 @@ python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 python -m eir.data      # download and tokenize
 ./run_all.sh            # 11 training runs
 python evaluate.py      # results/results.json
+python followup_groups.py   # follow-up: results/groups.json
 python report.py        # results/report.md, assets/frontier.png
 pytest -q
 ```
@@ -144,6 +176,7 @@ pytest -q
 | `eir/cache.py` | miss rate, coverage and switch-rate metrics from routing traces |
 | `train.py`, `run_all.sh` | training |
 | `evaluate.py`, `report.py` | inference grid, decision rule, plot |
+| `followup_groups.py` | post-hoc expert groups on the flat models |
 
 ## Limits
 
