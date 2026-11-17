@@ -2,7 +2,7 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-from eir.cache import lru_miss_rate, segment_coverage, switch_rate
+from eir.cache import coactivation_groups, lru_miss_rate, segment_coverage, switch_rate
 from eir.model import LM, Cfg
 from eir.moe import Cache, ExpertBank, FlatRouter, TreeRouter, reuse_loss, switch_loss
 
@@ -103,3 +103,18 @@ def test_bank_handles_collapsed_routing():
     torch.testing.assert_close(out, ref, atol=1e-5, rtol=1e-4)
     out.sum().backward()
     assert bank.w1.grad[0].abs().sum() > 0 and bank.w1.grad[2].abs().sum() == 0
+
+
+def test_coactivation_groups_recover_blocks():
+    block = torch.randint(0, 4, (6, 8))  # every 16-token segment uses one hidden block of 4 experts
+    trace = block.repeat_interleave(16, 1)[..., None] * 4 + torch.randint(0, 4, (6, 128, 2))
+    g = coactivation_groups(trace, 16, 4, seg=16).view(4, 4)
+    assert (g == g[:, :1]).all() and len(set(g[:, 0].tolist())) == 4
+
+
+def test_grouped_flat_scan_keeps_both_experts_in_one_sticky_group():
+    r, x, group = FlatRouter(D, 16, 2), torch.randn(3, 20, D), torch.arange(16) % 4
+    idx, _ = r.scan(x, Cache(3, 16, 4, group))
+    assert (group[idx[..., 0]] == group[idx[..., 1]]).all()
+    idx, _ = r.scan(x, Cache(3, 16, 4, group), margin=1e9)
+    assert (group[idx] == group[idx[:, :1, :1]]).all()

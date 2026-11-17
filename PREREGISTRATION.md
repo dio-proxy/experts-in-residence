@@ -70,3 +70,24 @@ block-wise expert batching). No pilot was evaluated on the held-out streams.
    8 GB training machine into swap (about 0.9 s per step and slowing). It was stopped at
    roughly step 600 of 2,000, discarded without evaluation, and every run was restarted at
    batch 16. Nothing else changed.
+
+## Follow-up 1 (exploratory): post-hoc expert groups
+
+Specified after the main results and before this follow-up was run on the held-out streams.
+It reuses those streams and was prompted by the main results, so it is exploratory whatever
+it shows.
+
+**Idea.** The sticky cluster made locality cheap; the tree structure was the cost. So keep
+the trained flat routers and add the grouping afterwards, with no retraining.
+
+- Groups: for each layer of a trained flat model, 8 groups of 8 experts, built from routing
+  traces on *training* data (384 sequences of 256 tokens, seed 0). Affinity is the cosine
+  similarity of two experts' usage across 64-token segments; the partition is greedy and
+  balanced (seed a group with the busiest free expert, add its closest free experts).
+- Routing: take the group with the largest probability mass, leaving the current group only
+  if another group's log mass is more than m higher. Both experts come from that group;
+  cache bonus Δ as in the flat family.
+- Grid: the four seed-0 flat models (λ ∈ {0, 0.03, 0.1, 0.3}) x Δ ∈ {0, 1, 2, 4} x m ∈ {0, 1, 2}.
+- Rule: the main decision rule with "grouped" in place of "tree". Supported if, within the
+  1% gate, its lowest miss rate at M = 8 is at most half the flat family's. The 2% and 5%
+  gates are reported as well.

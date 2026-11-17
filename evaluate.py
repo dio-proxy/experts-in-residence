@@ -16,11 +16,12 @@ BONUS, MARGIN = (0.0, 1.0, 2.0, 4.0), (0.0, 1.0, 2.0)
 
 
 @torch.no_grad()
-def evaluate(model, x, y, bonus=0.0, margin=0.0, capacity=PRIMARY):
-    """x, y [W, R, S]. Per-stream NLL [R] and routing trace [L, R, W*S, K] (None if dense)."""
+def evaluate(model, x, y, bonus=0.0, margin=0.0, capacity=PRIMARY, groups=None):
+    """x, y [W, R, S]. Per-stream NLL [R] and routing trace [L, R, W*S, K] (None if dense).
+    groups [L, N]: optional expert groups per layer for group-sticky flat routing."""
     c, dev = model.cfg, next(model.parameters()).device
-    knobs = bonus > 0 or margin > 0
-    caches = [Cache(x.shape[1], c.clusters * c.per_cluster, capacity) for _ in range(c.layers)] if knobs else None
+    knobs = bonus > 0 or margin > 0 or groups is not None
+    caches = [Cache(x.shape[1], c.clusters * c.per_cluster, capacity, None if groups is None else groups[i]) for i in range(c.layers)] if knobs else None
     nll, trace = 0, []
     for xw, yw in zip(x, y):
         logits, tr, _ = model(xw.to(dev), caches, bonus=bonus, margin=margin)

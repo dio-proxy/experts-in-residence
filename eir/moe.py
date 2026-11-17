@@ -27,9 +27,10 @@ def reuse_loss(probs, sel):
 class Cache:
     """Per-stream LRU over experts. `last` [R, N] holds last-use time, -1 = never loaded."""
 
-    def __init__(self, rows, n, capacity):
+    def __init__(self, rows, n, capacity, group=None):
         self.last = torch.full((rows, n), -1, dtype=torch.long)
         self.capacity, self.t = capacity, 0
+        self.group = group  # optional [N] expert -> group id, see FlatRouter.scan
         self.prev_cluster = torch.full((rows,), -1, dtype=torch.long)
 
     def resident(self):
@@ -56,12 +57,24 @@ class FlatRouter(nn.Module):
 
     @torch.no_grad()
     def scan(self, x, cache, bonus=0.0, margin=0.0):
-        """Token-by-token routing; resident experts get `bonus` added to their logit."""
+        """Token-by-token routing; resident experts get `bonus` added to their logit.
+
+        If the cache carries expert groups, both experts come from one group: the one with
+        the most probability mass, left only if another group's log mass is more than
+        `margin` higher (the post-hoc counterpart of TreeRouter.scan).
+        """
         logits = self.gate(x).float().cpu()
         p = F.softmax(logits, -1)
-        idx, w = [], []
+        rows, idx, w = torch.arange(x.shape[0]), [], []
         for t in range(x.shape[1]):
-            i = (logits[:, t] + bonus * cache.resident()).topk(self.k, -1).indices
+            z = logits[:, t] + bonus * cache.resident()
+            if cache.group is not None:
+                mass = torch.zeros(len(rows), int(cache.group.max()) + 1).index_add_(1, cache.group, p[:, t]).log()
+                g, prev = mass.argmax(-1), cache.prev_cluster
+                stay = (prev >= 0) & (mass[rows, g] - mass[rows, prev.clamp_min(0)] <= margin)
+                cache.prev_cluster = g = torch.where(stay, prev, g)
+                z = z.masked_fill(cache.group != g[:, None], -torch.inf)
+            i = z.topk(self.k, -1).indices
             idx.append(i), w.append(p[:, t].gather(-1, i))
             cache.touch(i)
         return torch.stack(idx, 1).to(x.device), torch.stack(w, 1).to(x.device)
