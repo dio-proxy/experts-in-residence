@@ -40,3 +40,31 @@ Gates of 1%, 2% and 5% are pre-registered. Wider gates were added after seeing t
 | ≤30% (exploratory) | tree | tree λ=0.1, Δ=2, m=2 | +24.70% | 0.0349 | 1.05 |
 
 **H1 at the pre-registered 1% gate: not supported.** No tree configuration is within the gate.
+
+## Follow-up 1 (exploratory): sticky post-hoc expert groups on the flat models
+
+Group restriction alone (no hysteresis, no cache bonus) against the flat model it is applied to:
+
+| flat model | perplexity flat | grouped | change | miss @8 flat | grouped |
+|---|---|---|---|---|---|
+| λ=0 | 53.59 | 57.74 | +7.7% | 0.739 | 0.709 |
+| λ=0.03 | 54.36 | 58.29 | +7.2% | 0.379 | 0.348 |
+| λ=0.1 | 67.17 | 68.27 | +1.6% | 0.051 | 0.052 |
+| λ=0.3 | 71.83 | 72.05 | +0.3% | 0.023 | 0.021 |
+
+| gate | family | selected configuration | perplexity vs flat | miss rate | grouped / flat |
+|---|---|---|---|---|---|
+| ≤1% | flat | flat λ=0 | +0.00% | 0.7426 | – |
+| ≤1% | grouped | none passes | – | – | – |
+| ≤2% | flat | flat λ=0.03 | +1.75% | 0.3849 | – |
+| ≤2% | grouped | none passes | – | – | – |
+| ≤5% | flat | flat λ=0.03 | +1.75% | 0.3849 | – |
+| ≤5% | grouped | none passes | – | – | – |
+| ≤10% | flat | flat λ=0.03, Δ=1 | +10.89% | 0.1185 | |
+| ≤10% | grouped | grouped λ=0.03 | +9.25% | 0.3518 | 2.97 |
+| ≤15% | flat | flat λ=0.03, Δ=1 | +10.89% | 0.1185 | |
+| ≤15% | grouped | grouped λ=0.03, Δ=1 | +12.73% | 0.2019 | 1.70 |
+| ≤20% | flat | flat λ=0.03, Δ=1 | +10.89% | 0.1185 | |
+| ≤20% | grouped | grouped λ=0.03, Δ=1 | +12.73% | 0.2019 | 1.70 |
+
+**Follow-up 1 at the 1% gate: not supported.** No grouped configuration is within the gate.

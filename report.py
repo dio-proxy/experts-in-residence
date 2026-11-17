@@ -1,4 +1,4 @@
-"""results/results.json -> results/report.md and assets/frontier.png, per PREREGISTRATION.md."""
+"""results/*.json -> results/report.md and assets/frontier.png, per PREREGISTRATION.md."""
 import json
 from pathlib import Path
 
@@ -10,12 +10,14 @@ import matplotlib.ticker
 import numpy as np
 
 ALL, EVEN, ODD = slice(None), slice(0, None, 2), slice(1, None, 2)  # select on EVEN streams, report on ODD
-R = json.load(open("results/results.json"))
+R = [r for f in ("results", "groups") if Path(f"results/{f}.json").exists() for r in json.load(open(f"results/{f}.json"))]
 ppl = lambda r, s=ALL: float(np.exp(np.mean(r["nll"][s])))
 miss = lambda r, s=ALL, m=8: float(np.mean(r[f"miss{m}"][s]))
-plain = {r["run"]: r for r in R if r["bonus"] == 0 and r["margin"] == 0}
+pct = lambda r, b, s=ALL: 100 * (ppl(r, s) / ppl(b, s) - 1)
+plain = {r["run"]: r for r in R if r["bonus"] == 0 and r["margin"] == 0}  # no inference-time knobs
 base = plain["flat"]
-family = {f: [r for r in R if r["router"] == f and r["seed"] == 0] for f in ("flat", "tree")}
+family = {f: [r for r in R if r["router"] == f and r["seed"] == 0] for f in ("flat", "tree", "grouped")}
+seed_gap = abs(pct(plain["flat-seed1"], base)) / 100 if "flat-seed1" in plain else float("nan")
 
 
 def name(r):
@@ -23,41 +25,65 @@ def name(r):
     return f"{r['router']} " + ", ".join(knobs)
 
 
+def decision(other, gates, prereg=1.0):
+    """Flat vs `other` at each perplexity gate: table rows and the verdict at the first gate."""
+    rows, first = [f"| gate | family | selected configuration | perplexity vs flat | miss rate | {other} / flat |", "|---|---|---|---|---|---|"], None
+    for gate in gates:
+        pick = {f: min((r for r in family[f] if ppl(r, EVEN) <= (1 + gate) * ppl(base, EVEN)), key=lambda r: miss(r, EVEN), default=None) for f in ("flat", other)}
+        ratio = miss(pick[other], ODD) / miss(pick["flat"], ODD) if all(pick.values()) else float("nan")
+        first = ratio if first is None else first
+        for f, r in pick.items():
+            rows.append(f"| ≤{gate:.0%}{'' if gate <= prereg else ' (exploratory)'} | {f} | "
+                        + ("none passes | – | – |" if r is None else f"{name(r)} | {pct(r, base, ODD):+.2f}% | {miss(r, ODD):.4f} |")
+                        + (" – |" if ratio != ratio else f" {ratio:.2f} |" if f == other else " |"))
+    verdict = "inconclusive (the 1% gate is inside seed noise)" if seed_gap > 0.01 else "supported" if first <= 0.5 else "not supported"
+    detail = f"No {other} configuration is within the gate." if first != first else f"{other} / flat miss ratio {first:.2f}; supported means at most 0.50."
+    return rows, f"{verdict}.** {detail}"
+
+
 out = ["## Trained models, no inference-time rerouting", "",
        "| run | perplexity | vs flat | vs own λ=0 | miss @4 | miss @8 | miss @16 | expert switch | cluster switch | coverage @8 |", "|---|---|---|---|---|---|---|---|---|---|"]
 for run, r in plain.items():
-    cells = [f"{ppl(r):.2f}"] + [f"{100 * (ppl(r) / ppl(b) - 1):+.1f}%" for b in (base, plain[r["router"]])]
+    if r["router"] == "grouped":
+        continue
+    cells = [f"{ppl(r):.2f}"] + [f"{pct(r, b):+.1f}%" for b in (base, plain[r["router"]])]
     if "miss8" in r:
         cells += [f"{miss(r, m=m):.3f}" for m in (4, 8, 16)] + [f"{r['expert_switch']:.3f}", "–" if r["cluster_switch"] is None else f"{r['cluster_switch']:.3f}", f"{r['coverage8']:.3f}"]
     out.append(f"| {run} | " + " | ".join(cells + ["–"] * (9 - len(cells))) + " |")
 
-seed_gap = abs(ppl(plain["flat-seed1"]) / ppl(base) - 1) if "flat-seed1" in plain else float("nan")
+rows, verdict = decision("tree", (0.01, 0.02, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30), prereg=0.05)
 out += ["", f"Seed-to-seed perplexity gap (flat, λ=0): {100 * seed_gap:.2f}%", "",
         "## Decision (cache of 8 experts per layer; selected on even streams, reported on odd)", "",
         "Gates of 1%, 2% and 5% are pre-registered. Wider gates were added after seeing the results and are exploratory.", "",
-        "| gate | family | selected configuration | perplexity vs flat | miss rate | tree / flat |", "|---|---|---|---|---|---|"]
-for gate in (0.01, 0.02, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30):
-    pick = {f: min((r for r in rows if ppl(r, EVEN) <= (1 + gate) * ppl(base, EVEN)), key=lambda r: miss(r, EVEN), default=None) for f, rows in family.items()}
-    ratio = miss(pick["tree"], ODD) / miss(pick["flat"], ODD) if all(pick.values()) else float("nan")
-    for f, r in pick.items():
-        out.append(f"| ≤{gate:.0%}{'' if gate <= 0.05 else ' (exploratory)'} | {f} | " + ("none passes | – | – |" if r is None else f"{name(r)} | {100 * (ppl(r, ODD) / ppl(base, ODD) - 1):+.2f}% | {miss(r, ODD):.4f} |") + (" – |" if ratio != ratio else f" {ratio:.2f} |" if f == "tree" else " |"))
-    if gate == 0.01:
-        primary = ratio
-verdict = "inconclusive (the 1% gate is inside seed noise)" if seed_gap > 0.01 else "supported" if primary <= 0.5 else "not supported"
-out += ["", f"**H1 at the pre-registered 1% gate: {verdict}.** " + ("No tree configuration is within the gate." if primary != primary else f"Tree / flat miss ratio {primary:.2f}; supported means at most 0.50.")]
+        *rows, "", f"**H1 at the pre-registered 1% gate: {verdict}"]
+
+if family["grouped"]:
+    rows, verdict = decision("grouped", (0.01, 0.02, 0.05, 0.10, 0.15, 0.20))
+    out += ["", "## Follow-up 1 (exploratory): sticky post-hoc expert groups on the flat models", "",
+            "Group restriction alone (no hysteresis, no cache bonus) against the flat model it is applied to:", "",
+            "| flat model | perplexity flat | grouped | change | miss @8 flat | grouped |", "|---|---|---|---|---|---|"]
+    for run, g in plain.items():
+        if g["router"] == "grouped":
+            f = plain[run.replace("grouped", "flat")]
+            out.append(f"| λ={g['lam']:g} | {ppl(f):.2f} | {ppl(g):.2f} | {pct(g, f):+.1f}% | {miss(f):.3f} | {miss(g):.3f} |")
+    out += ["", *rows, "", f"**Follow-up 1 at the 1% gate: {verdict}"]
+
 Path("results/report.md").write_text("\n".join(out) + "\n")
 print("\n".join(out))
 
 # ---- frontier plot: every configuration, perplexity change vs miss rate ----
-INK, MUTED, COLORS, MARK = "#0b0b0b", "#52514e", {"flat": "#2a78d6", "tree": "#eb6834"}, {"flat": "o", "tree": "s"}
-fig, ax = plt.subplots(figsize=(7.2, 4.4), facecolor="#fcfcfb")
-ax.set_facecolor("#fcfcfb")
+INK, MUTED, SURFACE = "#0b0b0b", "#52514e", "#fcfcfb"
+STYLE = {"flat": ("#2a78d6", "o", "flat router"), "tree": ("#eb6834", "s", "tree router"), "grouped": ("#1baf7a", "^", "flat router + post-hoc groups")}
+fig, ax = plt.subplots(figsize=(7.2, 4.4), facecolor=SURFACE)
+ax.set_facecolor(SURFACE)
 for f, rows in family.items():
-    pts = sorted((100 * (ppl(r) / ppl(base) - 1), miss(r)) for r in rows)
-    ax.scatter(*zip(*pts), s=42, marker=MARK[f], color=COLORS[f], edgecolor="#fcfcfb", linewidth=1.2, zorder=3, label=f"{f} router")
-    front = [p for i, p in enumerate(pts) if all(q[1] > p[1] for q in pts[:i])]  # lower-left envelope
-    ax.step(*zip(*front), where="post", color=COLORS[f], linewidth=2, zorder=2)
-for v, label in ((1, "1% gate"), (100 * (ppl(plain["dense"]) / ppl(base) - 1), "dense FFN, same active size")):
+    if rows:
+        color, marker, label = STYLE[f]
+        pts = sorted((pct(r, base), miss(r)) for r in rows)
+        ax.scatter(*zip(*pts), s=42, marker=marker, color=color, edgecolor=SURFACE, linewidth=1.2, zorder=3, label=label)
+        front = [p for i, p in enumerate(pts) if all(q[1] > p[1] for q in pts[:i])]  # lower-left envelope
+        ax.step(*zip(*front), where="post", color=color, linewidth=2, zorder=2)
+for v, label in ((1, "1% gate"), (pct(plain["dense"], base), "dense FFN, same active size")):
     ax.axvline(v, color=MUTED, linewidth=1, linestyle=(0, (4, 3)), zorder=1)
     ax.text(v, 0.02, label + " ", color=MUTED, fontsize=8, rotation=90, ha="right", va="bottom", transform=ax.get_xaxis_transform())
 ax.set_yscale("log")
