@@ -13,6 +13,9 @@ A follow-up that imposes the same grouping on the trained flat routers, with no 
 pays almost the same price (+7.7%). The cost is the constraint itself: both of a token's
 experts in one group of 8.
 
+A second follow-up relaxes that constraint (better groups, or one free expert). The cost
+goes away and so does the saving.
+
 ![Perplexity change vs expert cache miss rate for every configuration](assets/frontier.png)
 
 Every point is one configuration; the lines are each family's best trade-off. Configurations
@@ -134,13 +137,33 @@ the plain flat family is better (0.119 against 0.352 at 10%).
 - **Groups only come free where they do nothing.** On the λ ≥ 0.1 models the restriction costs
   under 2%, because those routers had already collapsed onto a few experts.
 
+## Follow-up 2: relaxing the constraint
+
+Both results blame one rule: a token's two experts must share a group. Two ways to relax it,
+again with no retraining, on 45 fresh held-out streams (protocol committed first):
+
+| variant, on the plain flat model | perplexity | miss @8 |
+|---|---|---|
+| flat (baseline on these streams) | 57.15 | 0.736 |
+| groups built from same-token pairs, both experts bound | 60.00 (+5.0%) | 0.754 |
+| one expert from the sticky group, one free | 57.29 (+0.2%) | 0.734 |
+| pair groups, one free | 57.24 (+0.2%) | 0.738 |
+
+**None is supported.** Better groups lower the entry fee from 7.7% to 5.0% but do not remove
+it. Freeing the second expert removes the fee and the benefit together: the miss rate is the
+flat router's (ratio 1.00 at the 1% and 2% gates, 0.88 to 0.90 at 5%).
+
+So the constraint and the saving are the same thing. Without training, a group restriction
+loose enough to be free is too loose to help.
+
 ## What I would try next
 
-Both results point at the same thing: the second expert needs to be free.
+The only place locality came cheap was a router *trained* with a sticky cluster. What is left
+is to train for it without the hard constraint:
 
-- one sticky expert group plus one unconstrained expert per token;
-- a cache of two clusters with a token allowed to span both;
-- more seeds and longer training for the tree gap itself, which rests on one seed here.
+- a flat router with the reuse loss applied to group mass (groups from co-activation), so
+  stickiness is learned but any two experts remain selectable;
+- more seeds and a larger model for the tree gap itself, which rests on one seed here.
 
 ## Setup
 
@@ -165,6 +188,7 @@ python -m eir.data      # download and tokenize
 ./run_all.sh            # 11 training runs
 python evaluate.py      # results/results.json
 python followup_groups.py   # follow-up: results/groups.json
+python followup2.py         # follow-up 2: results/followup2.json
 python report.py        # results/report.md, assets/frontier.png
 pytest -q
 ```
@@ -176,7 +200,7 @@ pytest -q
 | `eir/cache.py` | miss rate, coverage and switch-rate metrics from routing traces |
 | `train.py`, `run_all.sh` | training |
 | `evaluate.py`, `report.py` | inference grid, decision rule, plot |
-| `followup_groups.py` | post-hoc expert groups on the flat models |
+| `followup_groups.py`, `followup2.py` | post-hoc expert groups on the flat models |
 
 ## Limits
 

@@ -68,3 +68,44 @@ Group restriction alone (no hysteresis, no cache bonus) against the flat model i
 | ≤20% | grouped | grouped λ=0.03, Δ=1 | +12.73% | 0.2019 | 1.70 |
 
 **Follow-up 1 at the 1% gate: not supported.** No grouped configuration is within the gate.
+
+## Follow-up 2 (exploratory, fresh held-out streams): pair groups and one free expert
+
+| gate | family | selected configuration | perplexity vs flat | miss rate | pair-both / flat |
+|---|---|---|---|---|---|
+| ≤1% | flat | flat λ=0 | +0.00% | 0.7343 | – |
+| ≤1% | pair-both | none passes | – | – | – |
+| ≤2% | flat | flat λ=0.03 | +1.34% | 0.3799 | – |
+| ≤2% | pair-both | none passes | – | – | – |
+| ≤5% | flat | flat λ=0.03 | +1.34% | 0.3799 | – |
+| ≤5% | pair-both | none passes | – | – | – |
+| ≤10% | flat | flat λ=0.03, Δ=1 | +9.44% | 0.1156 | |
+| ≤10% | pair-both | pair-both λ=0, Δ=1 | +6.02% | 0.5930 | 5.13 |
+
+**pair-both at the 1% gate: not supported.** No pair-both configuration is within the gate.
+
+| gate | family | selected configuration | perplexity vs flat | miss rate | segment-free / flat |
+|---|---|---|---|---|---|
+| ≤1% | flat | flat λ=0 | +0.00% | 0.7343 | |
+| ≤1% | segment-free | segment-free λ=0 | +0.20% | 0.7332 | 1.00 |
+| ≤2% | flat | flat λ=0.03 | +1.34% | 0.3799 | |
+| ≤2% | segment-free | segment-free λ=0.03 | +1.47% | 0.3784 | 1.00 |
+| ≤5% | flat | flat λ=0.03 | +1.34% | 0.3799 | |
+| ≤5% | segment-free | segment-free λ=0.03, m=2 | +2.96% | 0.3435 | 0.90 |
+| ≤10% | flat | flat λ=0.03, Δ=1 | +9.44% | 0.1156 | |
+| ≤10% | segment-free | segment-free λ=0.03, Δ=1 | +8.47% | 0.1293 | 1.12 |
+
+**segment-free at the 1% gate: not supported.** segment-free / flat miss ratio 1.00; supported means at most 0.50.
+
+| gate | family | selected configuration | perplexity vs flat | miss rate | pair-free / flat |
+|---|---|---|---|---|---|
+| ≤1% | flat | flat λ=0 | +0.00% | 0.7343 | |
+| ≤1% | pair-free | pair-free λ=0 | +0.11% | 0.7360 | 1.00 |
+| ≤2% | flat | flat λ=0.03 | +1.34% | 0.3799 | |
+| ≤2% | pair-free | pair-free λ=0.03 | +1.43% | 0.3785 | 1.00 |
+| ≤5% | flat | flat λ=0.03 | +1.34% | 0.3799 | |
+| ≤5% | pair-free | pair-free λ=0.03, m=2 | +3.19% | 0.3326 | 0.88 |
+| ≤10% | flat | flat λ=0.03, Δ=1 | +9.44% | 0.1156 | |
+| ≤10% | pair-free | pair-free λ=0.03, Δ=1 | +9.73% | 0.1264 | 1.09 |
+
+**pair-free at the 1% gate: not supported.** pair-free / flat miss ratio 1.00; supported means at most 0.50.
