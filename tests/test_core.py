@@ -118,3 +118,10 @@ def test_grouped_flat_scan_keeps_both_experts_in_one_sticky_group():
     assert (group[idx[..., 0]] == group[idx[..., 1]]).all()
     idx, _ = r.scan(x, Cache(3, 16, 4, group), margin=1e9)
     assert (group[idx] == group[idx[:, :1, :1]]).all()
+
+
+def test_free_mode_binds_only_the_first_expert_to_the_group():
+    r, x, group = FlatRouter(D, 16, 2), torch.randn(3, 20, D), torch.arange(16) % 4
+    idx, _ = r.scan(x, Cache(3, 16, 4, group, free=True), margin=1e9)
+    assert (group[idx[..., 0]] == group[idx[:, :1, 0]]).all() and (idx[..., 0] != idx[..., 1]).all()
+    assert (group[idx[..., 1]] != group[idx[..., 0]]).any()

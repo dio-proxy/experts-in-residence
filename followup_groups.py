@@ -15,11 +15,11 @@ BATCHES, BATCH = 24, 16
 
 
 @torch.no_grad()
-def expert_groups(model, data, dev):
+def expert_groups(model, data, dev, seg=64):
     """Groups per layer [L, N] from routing traces on training sequences."""
     c, gen = model.cfg, torch.Generator().manual_seed(0)
     trace = torch.cat([model(get_batch(data, BATCH, c.seq, gen)[0].to(dev))[1].cpu() for _ in range(BATCHES)], 1)
-    return torch.stack([coactivation_groups(t, c.clusters * c.per_cluster, c.per_cluster) for t in trace])
+    return torch.stack([coactivation_groups(t, c.clusters * c.per_cluster, c.per_cluster, seg) for t in trace])
 
 
 if __name__ == "__main__":

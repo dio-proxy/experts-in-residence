@@ -25,7 +25,7 @@ def name(r):
     return f"{r['router']} " + ", ".join(knobs)
 
 
-def decision(other, gates, prereg=1.0):
+def decision(other, gates, prereg=1.0, family=family, base=base):
     """Flat vs `other` at each perplexity gate: table rows and the verdict at the first gate."""
     rows, first = [f"| gate | family | selected configuration | perplexity vs flat | miss rate | {other} / flat |", "|---|---|---|---|---|---|"], None
     for gate in gates:
@@ -67,6 +67,16 @@ if family["grouped"]:
             f = plain[run.replace("grouped", "flat")]
             out.append(f"| λ={g['lam']:g} | {ppl(f):.2f} | {ppl(g):.2f} | {pct(g, f):+.1f}% | {miss(f):.3f} | {miss(g):.3f} |")
     out += ["", *rows, "", f"**Follow-up 1 at the 1% gate: {verdict}"]
+
+F2 = Path("results/followup2.json")
+if F2.exists():  # separate held-out streams, so its own flat baseline
+    R2 = json.load(open(F2))
+    fam2 = {f: [r for r in R2 if r["router"] == f] for f in dict.fromkeys(r["router"] for r in R2)}
+    base2 = next(r for r in fam2["flat"] if r["lam"] == 0 and r["bonus"] == 0)
+    out += ["", "## Follow-up 2 (exploratory, fresh held-out streams): pair groups and one free expert"]
+    for other in list(fam2)[1:]:
+        rows, verdict = decision(other, (0.01, 0.02, 0.05, 0.10), family=fam2, base=base2)
+        out += ["", *rows, "", f"**{other} at the 1% gate: {verdict}"]
 
 Path("results/report.md").write_text("\n".join(out) + "\n")
 print("\n".join(out))

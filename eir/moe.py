@@ -27,10 +27,10 @@ def reuse_loss(probs, sel):
 class Cache:
     """Per-stream LRU over experts. `last` [R, N] holds last-use time, -1 = never loaded."""
 
-    def __init__(self, rows, n, capacity, group=None):
+    def __init__(self, rows, n, capacity, group=None, free=False):
         self.last = torch.full((rows, n), -1, dtype=torch.long)
         self.capacity, self.t = capacity, 0
-        self.group = group  # optional [N] expert -> group id, see FlatRouter.scan
+        self.group, self.free = group, free  # optional [N] expert -> group id, see FlatRouter.scan
         self.prev_cluster = torch.full((rows,), -1, dtype=torch.long)
 
     def resident(self):
@@ -61,7 +61,8 @@ class FlatRouter(nn.Module):
 
         If the cache carries expert groups, both experts come from one group: the one with
         the most probability mass, left only if another group's log mass is more than
-        `margin` higher (the post-hoc counterpart of TreeRouter.scan).
+        `margin` higher (the post-hoc counterpart of TreeRouter.scan). With `cache.free`
+        only the first expert is bound to the group; the rest are picked from all experts.
         """
         logits = self.gate(x).float().cpu()
         p = F.softmax(logits, -1)
@@ -73,8 +74,13 @@ class FlatRouter(nn.Module):
                 g, prev = mass.argmax(-1), cache.prev_cluster
                 stay = (prev >= 0) & (mass[rows, g] - mass[rows, prev.clamp_min(0)] <= margin)
                 cache.prev_cluster = g = torch.where(stay, prev, g)
-                z = z.masked_fill(cache.group != g[:, None], -torch.inf)
-            i = z.topk(self.k, -1).indices
+                inside = z.masked_fill(cache.group != g[:, None], -torch.inf)
+                if cache.free:
+                    first = inside.argmax(-1, keepdim=True)
+                    z = torch.cat([first, z.scatter(1, first, -torch.inf).topk(self.k - 1, -1).indices], 1)
+                else:
+                    z = inside.topk(self.k, -1).indices
+            i = z if cache.group is not None else z.topk(self.k, -1).indices
             idx.append(i), w.append(p[:, t].gather(-1, i))
             cache.touch(i)
         return torch.stack(idx, 1).to(x.device), torch.stack(w, 1).to(x.device)

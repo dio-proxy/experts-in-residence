@@ -91,3 +91,23 @@ the trained flat routers and add the grouping afterwards, with no retraining.
 - Rule: the main decision rule with "grouped" in place of "tree". Supported if, within the
   1% gate, its lowest miss rate at M = 8 is at most half the flat family's. The 2% and 5%
   gates are reported as well.
+
+## Follow-up 2 (exploratory): pair groups and one free expert
+
+Specified after Follow-up 1 and before running. Both earlier results put the cost on one
+constraint: a token's two experts must share a group of 8. This follow-up relaxes it in two
+ways, still with no retraining.
+
+- **Pair groups:** group experts by how often they are selected *for the same token*
+  (the Follow-up 1 procedure with a segment length of 1), so the pairs the router wants
+  are more often in one group.
+- **One free expert:** only the first expert must come from the sticky group; the second
+  is the best of all 64.
+- Variants: pair groups with both experts bound; Follow-up 1 groups with one free expert;
+  pair groups with one free expert. Models: flat λ ∈ {0, 0.03}, seed 0 (λ ≥ 0.1 is already
+  outside every gate). Grid: Δ ∈ {0, 1, 2, 4} x m ∈ {0, 1, 2}.
+- **Fresh data:** 15 held-out streams per domain placed midway between the streams used so
+  far, with no overlap. The flat family (Δ grid) is re-evaluated on them as the baseline.
+- Rule, per variant: the main decision rule. Supported if, within 1% of the flat λ=0
+  perplexity, its lowest miss rate at M = 8 is at most half the flat family's. 2% and 5%
+  reported as well. Three variants are tested, so one pass out of three needs confirmation.
