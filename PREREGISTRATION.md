@@ -111,3 +111,9 @@ ways, still with no retraining.
 - Rule, per variant: the main decision rule. Supported if, within 1% of the flat λ=0
   perplexity, its lowest miss rate at M = 8 is at most half the flat family's. 2% and 5%
   reported as well. Three variants are tested, so one pass out of three needs confirmation.
+
+## Corrections
+
+1. The Question section quotes arXiv:2608.18261 as "miss reduction and quality are tightly
+   coupled". The paper's words are "miss reduction and perplexity cost are tightly coupled".
+   The original text above is left unchanged.

@@ -31,9 +31,12 @@ how often the next token needs an expert that is not resident.
 
 How much a router reuses experts across adjacent tokens varies a lot between models
 ([Mixtral](https://arxiv.org/abs/2401.04088); [Liang et al., 2026](https://arxiv.org/abs/2505.16056)).
-Training the router for reuse helps ([ReMoE](https://arxiv.org/abs/2605.27081)), but a recent
-pre-registered study found that every such configuration failed a 1% perplexity gate:
-"miss reduction and quality are tightly coupled" ([Suram, 2026](https://arxiv.org/abs/2608.18261)).
+Training the router for reuse helps ([ReMoE](https://arxiv.org/abs/2605.27081)). The same
+adjacent-token reuse loss was reported as nearly free on single-domain models under 25M
+parameters ([StickyMoE](https://arxiv.org/abs/2607.08780)), but a pre-registered study on
+multi-domain 137M models found that no configuration met both its miss-reduction target and a
+1% perplexity gate: "miss reduction and perplexity cost are tightly coupled"
+([Suram, 2026](https://arxiv.org/abs/2608.18261)).
 
 ## Hypothesis
 
@@ -88,7 +91,7 @@ seed noise and the verdict stands.
    it just does not pay for the tree.
 3. **The flat result replicates the coupling.** The only flat configuration within 1% is the
    baseline. The mildest reuse loss already costs 1.4%, in line with Suram (2026) at a much
-   smaller scale.
+   smaller scale, and unlike the near-free result StickyMoE reports for single-domain models.
 4. **A cache smaller than a cluster breaks the tree.** With 4 resident experts the sticky tree
    misses 46% of the time against 11% for flat λ=0.1. The tree never learned to reuse experts,
    only clusters (expert switch rate 0.82), as the pre-registration's limits anticipated.
@@ -169,13 +172,14 @@ is to train for it without the hard constraint:
 
 - 4-layer causal transformer, d=192, context 256, 4k BPE vocabulary. Every FFN is an MoE with
   64 experts (hidden 384), 2 active per token: 39M parameters, 2.6M active.
-- WikiText-2, TinyStories and CPython standard library source; each sequence is one domain.
+- WikiText-2, TinyStories and the CPython standard library source (of the Python running the
+  data script; Python 3.14 here); each sequence is one domain.
 - 2,000 steps, batch 16x256, same batches for every run. 11 runs, about 11 minutes each on an M1.
 - Flat family: reuse loss on the 64-way expert distribution, λ ∈ {0, 0.03, 0.1, 0.3}, cache
   bonus Δ ∈ {0, 1, 2, 4} at inference ([Skliar et al., 2024](https://arxiv.org/abs/2412.00099)).
 - Tree family: reuse loss on the 8-way cluster distribution only, same λ, plus a slow cluster
   gate; cache bonus and cluster hysteresis m ∈ {0, 1, 2} at inference.
-- 78 evaluated configurations in the main experiment, 48 more in the follow-up.
+- 206 evaluated configurations: 78 in the main experiment, 48 in Follow-up 1, 80 in Follow-up 2.
 
 Both routers share the expert bank, the balance loss and the batches. No token is ever dropped:
 experts run in blocks of the mean load in a single `bmm`, whatever the load skew.
@@ -216,8 +220,9 @@ pytest -q
 2. Eliseev, Mazur. *Fast Inference of Mixture-of-Experts Language Models with Offloading.* 2023. [arXiv:2312.17238](https://arxiv.org/abs/2312.17238)
 3. Liang et al. *Not All Models Suit Expert Offloading: On Local Routing Consistency of Mixture-of-Expert Models.* ICLR 2026. [arXiv:2505.16056](https://arxiv.org/abs/2505.16056)
 4. Suram. *Cacheable by Design? Training Mixture-of-Experts Routers for Locality Against the Edge Memory-Bandwidth Wall: A Pre-Registered Negative Result with a Systems Measurement Study.* 2026. [arXiv:2608.18261](https://arxiv.org/abs/2608.18261)
-5. *ReMoE.* 2026. [arXiv:2605.27081](https://arxiv.org/abs/2605.27081)
+5. Zhu et al. *ReMoE: Boosting Expert Reuse through Router Fine-Tuning in Memory-Constrained MoE LLM Inference.* 2026. [arXiv:2605.27081](https://arxiv.org/abs/2605.27081)
 6. Skliar et al. *Mixture of Cache-Conditional Experts for Efficient Mobile Device Inference.* 2024. [arXiv:2412.00099](https://arxiv.org/abs/2412.00099)
 7. *A Survey on Inference Optimization Techniques for Mixture of Experts Models.* 2024. [arXiv:2412.14219](https://arxiv.org/abs/2412.14219)
 8. Fedus, Zoph, Shazeer. *Switch Transformers.* 2021. [arXiv:2101.03961](https://arxiv.org/abs/2101.03961)
 9. Shazeer et al. *Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer.* 2017. [arXiv:1701.06538](https://arxiv.org/abs/1701.06538)
+10. Kayyam. *Sticky Routing: Training MoE Models for Memory-Efficient Inference.* 2026. [arXiv:2607.08780](https://arxiv.org/abs/2607.08780)
